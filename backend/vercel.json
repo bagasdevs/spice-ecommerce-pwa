@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 30
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.js"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "POSTGRES_PRISMA_URL": "@postgres_prisma_url",
+    "POSTGRES_URL_NON_POOLING": "@postgres_url_non_pooling",
+    "JWT_SECRET": "@jwt_secret",
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "MIDTRANS_SERVER_KEY": "@midtrans_server_key",
+    "MIDTRANS_CLIENT_KEY": "@midtrans_client_key",
+    "RAJAONGKIR_API_KEY": "@rajaongkir_api_key"
+  },
+  "functions": {
+    "index.js": {
+      "maxDuration": 30
+    }
+  }
+}

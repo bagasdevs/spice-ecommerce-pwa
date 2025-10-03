@@ -1,0 +1,256 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")      // uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+}
+
+enum UserRole {
+  SELLER
+  BUYER
+  ADMIN
+}
+
+enum SpiceType {
+  JAHE         // Ginger
+  KUNYIT       // Turmeric
+  LENGKUAS     // Galangal
+  KENCUR       // Aromatic Ginger
+  TEMULAWAK    // Javanese Ginger
+  SERAI        // Lemongrass
+  DAUN_JERUK   // Kaffir Lime Leaves
+  CABE_RAWIT   // Bird's Eye Chili
+  KEMIRI       // Candlenut
+  PALA         // Nutmeg
+  CENGKEH      // Cloves
+  KAYU_MANIS   // Cinnamon
+  MERICA       // Black Pepper
+  JINTAN       // Cumin
+  KETUMBAR     // Coriander
+  KAPULAGA     // Cardamom
+  BUNGA_LAWANG // Star Anise
+  OTHER
+}
+
+enum QualityGrade {
+  A_PREMIUM    // Grade A - Premium quality
+  B_STANDARD   // Grade B - Standard quality
+  C_ECONOMY    // Grade C - Economy quality
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  passwordHash String  @map("password_hash")
+  role        UserRole @default(BUYER)
+  name        String?
+  phone       String?
+  address     String?
+  city        String?
+  province    String?
+  postalCode  String?  @map("postal_code")
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sellerProfile   SellerProfile?
+  products        Product[]      @relation("SellerProducts")
+  buyerTransactions Transaction[] @relation("BuyerTransactions")
+  priceHistories  PriceHistory[]
+  reviews         Review[]
+
+  @@map("users")
+}
+
+model SellerProfile {
+  id                Int     @id @default(autoincrement())
+  userId            Int     @unique @map("user_id")
+  farmName          String? @map("farm_name")
+  farmLocation      String? @map("farm_location")
+  cooperativeName   String? @map("cooperative_name")
+  verificationDocs  String? @map("verification_docs") // JSON array of document URLs
+  bankAccount       String? @map("bank_account")
+  bankName          String? @map("bank_name")
+  totalSales        Decimal @default(0) @map("total_sales") @db.Decimal(15, 2)
+  averageRating     Float   @default(0) @map("average_rating")
+  totalReviews      Int     @default(0) @map("total_reviews")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seller_profiles")
+}
+
+model Product {
+  id             Int          @id @default(autoincrement())
+  name           String
+  spiceType      SpiceType    @map("spice_type")
+  description    String?
+  stockQuantity  Int          @map("stock_quantity")
+  unitPrice      Decimal      @map("unit_price") @db.Decimal(10, 2)
+  qualityGrade   QualityGrade @map("quality_grade")
+  harvestDate    DateTime?    @map("harvest_date")
+  expiryDate     DateTime?    @map("expiry_date")
+  images         String?      // JSON array of image URLs
+  sellerId       Int          @map("seller_id")
+  isActive       Boolean      @default(true) @map("is_active")
+  minOrderQty    Int          @default(1) @map("min_order_qty")
+  unit           String       @default("kg") // kg, gram, etc.
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  seller           User              @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
+  transactionItems TransactionItem[]
+  priceHistories   PriceHistory[]
+  reviews          Review[]
+
+  @@map("products")
+}
+
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  buyerId         Int               @map("buyer_id")
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(12, 2)
+  shippingCost    Decimal           @default(0) @map("shipping_cost") @db.Decimal(10, 2)
+  totalWeight     Decimal           @map("total_weight") @db.Decimal(8, 2)
+  status          TransactionStatus @default(PENDING)
+  paymentStatus   PaymentStatus     @default(PENDING) @map("payment_status")
+  paymentToken    String?           @map("payment_token")
+  paymentMethod   String?           @map("payment_method")
+  shippingAddress String            @map("shipping_address")
+  shippingCity    String            @map("shipping_city")
+  shippingProvince String           @map("shipping_province")
+  shippingPostal  String            @map("shipping_postal")
+  courierService  String?           @map("courier_service") // JNE, TIKI, POS, etc.
+  trackingNumber  String?           @map("tracking_number")
+  notes           String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  buyer User              @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  items TransactionItem[]
+
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id            Int     @id @default(autoincrement())
+  transactionId Int     @map("transaction_id")
+  productId     Int     @map("product_id")
+  quantity      Int
+  unitPrice     Decimal @map("unit_price") @db.Decimal(10, 2)
+  totalPrice    Decimal @map("total_price") @db.Decimal(10, 2)
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@map("transaction_items")
+}
+
+model PriceHistory {
+  id        Int      @id @default(autoincrement())
+  productId Int?     @map("product_id")
+  spiceType SpiceType @map("spice_type")
+  quality   QualityGrade
+  price     Decimal  @db.Decimal(10, 2)
+  source    String   // "internal", "tokopedia", "shopee", "bukalapak", "manual"
+  region    String?  // for regional price differences
+  collectedBy Int?   @map("collected_by") // user who collected this price
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  product       Product? @relation(fields: [productId], references: [id])
+  collectedByUser User?  @relation(fields: [collectedBy], references: [id])
+
+  @@map("price_histories")
+}
+
+model AIPricePrediction {
+  id             Int      @id @default(autoincrement())
+  spiceType      SpiceType @map("spice_type")
+  quality        QualityGrade
+  currentPrice   Decimal  @map("current_price") @db.Decimal(10, 2)
+  predictedPrice Decimal  @map("predicted_price") @db.Decimal(10, 2)
+  confidence     Float    // 0-1 confidence score
+  recommendation String   // "SELL_NOW", "WAIT", "HOLD"
+  reasoning      String?  // AI explanation
+  validUntil     DateTime @map("valid_until")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("ai_price_predictions")
+}
+
+model Review {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  buyerId     Int      @map("buyer_id")
+  rating      Int      // 1-5 stars
+  comment     String?
+  images      String?  // JSON array of review image URLs
+  isVerified  Boolean  @default(false) @map("is_verified") // verified purchase
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyer   User    @relation(fields: [buyerId], references: [id])
+
+  @@unique([productId, buyerId])
+  @@map("reviews")
+}
+
+model ShippingRate {
+  id           Int      @id @default(autoincrement())
+  originCity   String   @map("origin_city")
+  destCity     String   @map("dest_city")
+  courier      String   // JNE, TIKI, POS
+  service      String   // REG, OKE, etc.
+  weightRange  String   @map("weight_range") // "0-1", "1-2", etc.
+  cost         Decimal  @db.Decimal(8, 2)
+  estimatedDays String  @map("estimated_days") // "2-3", "1-2", etc.
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([originCity, destCity, courier, service, weightRange])
+  @@map("shipping_rates")
+}
+
+model SystemConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  description String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}

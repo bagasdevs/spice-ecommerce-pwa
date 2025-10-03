@@ -1,0 +1,536 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ENUMS =====
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  OTHER
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  OUT_OF_STOCK
+}
+
+enum QualityGrade {
+  PREMIUM
+  STANDARD
+  ECONOMY
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum ShippingStatus {
+  NOT_SHIPPED
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  EWALLET
+  COD
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_CONFIRMATION
+  SHIPPING_UPDATE
+  PRODUCT_UPDATE
+  PROMOTION
+  SYSTEM
+}
+
+// ===== USER MANAGEMENT =====
+model User {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(255)
+  phone     String   @unique @db.VarChar(20)
+  role      Role     @default(BUYER)
+  isActive  Boolean  @default(true)
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+
+  // Relations
+  profile          Profile?
+  products         Product[]
+  orders           Order[]
+  cartItems        CartItem[]
+  reviews          Review[]
+  notifications    Notification[]
+  addresses        Address[]
+  sellerProfile    SellerProfile?
+  adminProfile     AdminProfile?
+
+  @@map("users")
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  bio         String?   @db.Text
+  avatar      String?   @db.VarChar(255)
+  dateOfBirth DateTime?
+  gender      Gender?
+  address     String?   @db.Text
+  city        String?   @db.VarChar(100)
+  province    String?   @db.VarChar(100)
+  postalCode  String?   @db.VarChar(10)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model SellerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  shopName        String   @db.VarChar(100)
+  shopDescription String?  @db.Text
+  shopLogo        String?  @db.VarChar(255)
+  shopBanner      String?  @db.VarChar(255)
+  businessLicense String?  @db.VarChar(100)
+  taxId           String?  @db.VarChar(50)
+  bankAccount     String?  @db.VarChar(100)
+  bankName        String?  @db.VarChar(100)
+  isVerified      Boolean  @default(false)
+  rating          Decimal  @default(0) @db.Decimal(3, 2)
+  totalSales      Int      @default(0)
+  joinedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seller_profiles")
+}
+
+model AdminProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  permissions Json
+  department  String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}
+
+model Address {
+  id          String      @id @default(cuid())
+  userId      String
+  name        String      @db.VarChar(100)
+  phone       String      @db.VarChar(20)
+  address     String      @db.Text
+  city        String      @db.VarChar(100)
+  province    String      @db.VarChar(100)
+  postalCode  String      @db.VarChar(10)
+  isDefault   Boolean     @default(false)
+  type        AddressType @default(HOME)
+  latitude    Decimal?    @db.Decimal(10, 8)
+  longitude   Decimal?    @db.Decimal(11, 8)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("addresses")
+}
+
+// ===== PRODUCT MANAGEMENT =====
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique @db.VarChar(100)
+  slug        String    @unique @db.VarChar(100)
+  description String?   @db.Text
+  image       String?   @db.VarChar(255)
+  icon        String?   @db.VarChar(100)
+  parentId    String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryHierarchy")
+  products   Product[]
+  spiceTypes SpiceType[]
+
+  @@map("categories")
+}
+
+model SpiceType {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(100)
+  categoryId  String
+  description String?  @db.Text
+  image       String?  @db.VarChar(255)
+  properties  Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category Category  @relation(fields: [categoryId], references: [id])
+  products Product[]
+
+  @@map("spice_types")
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  sellerId        String
+  categoryId      String
+  spiceTypeId     String
+  name            String        @db.VarChar(200)
+  slug            String        @unique @db.VarChar(200)
+  description     String        @db.Text
+  shortDescription String?      @db.VarChar(500)
+
+  // Pricing
+  price           Decimal       @db.Decimal(10, 2)
+  originalPrice   Decimal?      @db.Decimal(10, 2)
+  discount        Decimal?      @db.Decimal(5, 2)
+
+  // Inventory
+  stock           Int           @default(0)
+  minStock        Int           @default(5)
+  sku             String?       @unique @db.VarChar(100)
+
+  // Physical properties
+  weight          Decimal?      @db.Decimal(8, 3)
+  dimensions      Json?
+
+  // Spice specific
+  origin          String        @db.VarChar(100)
+  harvestDate     DateTime?
+  expiryDate      DateTime?
+  isOrganic       Boolean       @default(false)
+  certifications  Json?
+
+  // Quality specs
+  quality         QualityGrade  @default(STANDARD)
+  moisture        Decimal?      @db.Decimal(5, 2)
+  purity          Decimal?      @db.Decimal(5, 2)
+  specifications  Json?
+
+  // SEO & Marketing
+  tags            Json?
+  metaTitle       String?       @db.VarChar(200)
+  metaDescription String?       @db.VarChar(500)
+
+  // Status
+  status          ProductStatus @default(DRAFT)
+  isActive        Boolean       @default(true)
+  isFeatured      Boolean       @default(false)
+
+  // Analytics
+  views           Int           @default(0)
+  salesCount      Int           @default(0)
+  rating          Decimal       @default(0) @db.Decimal(3, 2)
+  reviewCount     Int           @default(0)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  publishedAt     DateTime?
+
+  // Relations
+  seller       User           @relation(fields: [sellerId], references: [id])
+  category     Category       @relation(fields: [categoryId], references: [id])
+  spiceType    SpiceType      @relation(fields: [spiceTypeId], references: [id])
+  images       ProductImage[]
+  variants     ProductVariant[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  reviews      Review[]
+  priceHistory PriceHistory[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String   @db.VarChar(500)
+  alt       String?  @db.VarChar(200)
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  name      String   @db.VarChar(100)
+  value     String   @db.VarChar(100)
+  price     Decimal? @db.Decimal(10, 2)
+  stock     Int?
+  sku       String?  @db.VarChar(100)
+  image     String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_variants")
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  productId String
+  price     Decimal  @db.Decimal(10, 2)
+  reason    String?  @db.VarChar(200)
+  createdAt DateTime @default(now())
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("price_history")
+}
+
+// ===== CART & ORDER MANAGEMENT =====
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?    @unique
+  sessionId String?    @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String?
+  userId    String?
+  productId String
+  quantity  Int      @default(1)
+  variantId String?
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  cart    Cart?   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  orderNumber     String      @unique @db.VarChar(50)
+
+  // Totals
+  subtotal        Decimal     @db.Decimal(10, 2)
+  shippingCost    Decimal     @default(0) @db.Decimal(10, 2)
+  tax             Decimal     @default(0) @db.Decimal(10, 2)
+  discount        Decimal     @default(0) @db.Decimal(10, 2)
+  total           Decimal     @db.Decimal(10, 2)
+
+  // Status
+  status          OrderStatus @default(PENDING)
+  paymentStatus   PaymentStatus @default(PENDING)
+  shippingStatus  ShippingStatus @default(NOT_SHIPPED)
+
+  // Customer info
+  customerName    String      @db.VarChar(100)
+  customerPhone   String      @db.VarChar(20)
+  customerEmail   String      @db.VarChar(100)
+
+  // Shipping
+  addressId       String?
+  shippingAddress Json?
+  shippingMethod  String?     @db.VarChar(100)
+  trackingNumber  String?     @db.VarChar(100)
+
+  // Payment
+  paymentMethod   String?     @db.VarChar(50)
+  paymentRef      String?     @db.VarChar(100)
+  paidAt          DateTime?
+
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  confirmedAt     DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+
+  // Notes
+  notes           String?     @db.Text
+  cancelReason    String?     @db.VarChar(500)
+
+  // Relations
+  user    User       @relation(fields: [userId], references: [id])
+  address Address?   @relation(fields: [addressId], references: [id])
+  items   OrderItem[]
+  payment Payment?
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  price       Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+
+  // Snapshot data at order time
+  productName String   @db.VarChar(200)
+  productImage String? @db.VarChar(500)
+  variantInfo Json?
+
+  createdAt   DateTime @default(now())
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  provider      String        @db.VarChar(50)
+  reference     String?       @db.VarChar(100)
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  failedAt      DateTime?
+  refundedAt    DateTime?
+  refundAmount  Decimal?      @db.Decimal(10, 2)
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+// ===== REVIEW SYSTEM =====
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  rating    Int
+  title     String?  @db.VarChar(200)
+  comment   String?  @db.Text
+  images    Json?
+  isVerified Boolean @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@map("reviews")
+}
+
+// ===== NOTIFICATION SYSTEM =====
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String             @db.VarChar(200)
+  message   String             @db.Text
+  data      Json?
+  isRead    Boolean            @default(false)
+  createdAt DateTime           @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ===== AI PRICE INSIGHTS =====
+model PriceInsight {
+  id            String   @id @default(cuid())
+  spiceType     String   @db.VarChar(100)
+  quality       String   @db.VarChar(50)
+  origin        String   @db.VarChar(100)
+  isOrganic     Boolean  @default(false)
+  minPrice      Decimal  @db.Decimal(10, 2)
+  maxPrice      Decimal  @db.Decimal(10, 2)
+  avgPrice      Decimal  @db.Decimal(10, 2)
+  confidence    Decimal  @db.Decimal(3, 2)
+  factors       Json?
+  marketTrend   String?  @db.VarChar(20)
+  lastUpdated   DateTime @default(now())
+
+  @@map("price_insights")
+}
